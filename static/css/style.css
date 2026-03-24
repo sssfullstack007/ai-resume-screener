@@ -1,0 +1,83 @@
+body {
+    background-color: #f0f4f8;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.navbar {
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    padding: 1rem 0;
+}
+
+.hero-section {
+    background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 60%, #533483 100%);
+    padding: 3rem 0 2rem;
+}
+
+.card {
+    border: none;
+    border-radius: 12px;
+}
+
+.card-header {
+    background: #fff;
+    border-bottom: 2px solid #f0f4f8;
+    border-radius: 12px 12px 0 0 !important;
+    padding: 1rem 1.25rem;
+}
+
+.upload-zone {
+    border: 2px dashed #0d6efd;
+    border-radius: 10px;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: #f8f9ff;
+}
+
+.upload-zone:hover, .upload-zone.drag-over {
+    background: #e8f0ff;
+    border-color: #0a58ca;
+    transform: scale(1.01);
+}
+
+.result-card {
+    background: #fff;
+    transition: box-shadow 0.2s;
+}
+
+.result-card:hover {
+    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+}
+
+.progress {
+    border-radius: 50px;
+    background: #e9ecef;
+}
+
+.progress-bar {
+    border-radius: 50px;
+    transition: width 1s ease-in-out;
+}
+
+#loadingOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 9999;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+}
+
+.spinner-box {
+    background: rgba(255,255,255,0.1);
+    padding: 2rem 3rem;
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+}
+
+footer {
+    border-top: 1px solid #dee2e6;
+    background: #fff;
+}

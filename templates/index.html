@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Resume Screening System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar navbar-dark">
+    <div class="container">
+        <span class="navbar-brand fw-bold fs-4">
+            <i class="fas fa-robot me-2"></i>AI Resume Screener
+        </span>
+        <span class="text-white-50 small">Powered by NLP & Machine Learning</span>
+    </div>
+</nav>
+
+<!-- Hero -->
+<div class="hero-section text-center py-5">
+    <div class="container">
+        <h1 class="display-5 fw-bold text-white mb-2">Smart Resume Screening</h1>
+        <p class="text-white-50 fs-5">Upload resumes & a job description — get instant match scores & skill insights</p>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="container my-5">
+    <div class="row g-4">
+
+        <!-- Input Form -->
+        <div class="col-lg-5">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-upload me-2 text-primary"></i>Input Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Job Description</label>
+                        <textarea id="jobDescription" class="form-control" rows="8"
+                            placeholder="Paste the job description here...&#10;&#10;e.g. We are looking for a Python developer with experience in Flask, REST APIs, SQL, and data analysis..."></textarea>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Upload Resumes</label>
+                        <div class="upload-zone" id="uploadZone">
+                            <i class="fas fa-cloud-upload-alt fa-2x text-primary mb-2"></i>
+                            <p class="mb-1">Drag & drop resumes here</p>
+                            <p class="text-muted small">or click to browse</p>
+                            <input type="file" id="resumeFiles" multiple accept=".pdf,.docx,.txt" class="d-none">
+                            <span class="badge bg-secondary">PDF, DOCX, TXT supported</span>
+                        </div>
+                        <div id="fileList" class="mt-2"></div>
+                    </div>
+
+                    <button class="btn btn-primary w-100 py-2 fw-semibold" id="analyzeBtn" onclick="analyzeResumes()">
+                        <i class="fas fa-search me-2"></i>Analyze Resumes
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Panel -->
+        <div class="col-lg-7">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-chart-bar me-2 text-success"></i>Results</h5>
+                    <span id="resultCount" class="badge bg-primary d-none"></span>
+                </div>
+                <div class="card-body" id="resultsPanel">
+                    <div class="empty-state text-center py-5">
+                        <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">Results will appear here after analysis</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="d-none">
+    <div class="spinner-box text-center text-white">
+        <div class="spinner-border text-light mb-3" role="status" style="width:3rem;height:3rem;"></div>
+        <h5>Analyzing Resumes...</h5>
+        <p class="text-white-50 small">Extracting skills & calculating match scores</p>
+    </div>
+</div>
+
+<footer class="text-center py-4 text-muted small mt-4">
+    Built with Python • Flask • spaCy • Scikit-learn | AI Resume Screening System
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // Upload zone interaction
+    const uploadZone = document.getElementById('uploadZone');
+    const fileInput = document.getElementById('resumeFiles');
+
+    uploadZone.addEventListener('click', () => fileInput.click());
+    uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+    uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+    uploadZone.addEventListener('drop', e => {
+        e.preventDefault();
+        uploadZone.classList.remove('drag-over');
+        fileInput.files = e.dataTransfer.files;
+        updateFileList();
+    });
+    fileInput.addEventListener('change', updateFileList);
+
+    function updateFileList() {
+        const list = document.getElementById('fileList');
+        list.innerHTML = '';
+        Array.from(fileInput.files).forEach(f => {
+            list.innerHTML += `<span class="badge bg-light text-dark border me-1 mb-1">
+                <i class="fas fa-file-pdf text-danger me-1"></i>${f.name}</span>`;
+        });
+    }
+
+    async function analyzeResumes() {
+        const jd = document.getElementById('jobDescription').value.trim();
+        const files = fileInput.files;
+
+        if (!jd) { alert('Please enter a job description!'); return; }
+        if (!files.length) { alert('Please upload at least one resume!'); return; }
+
+        const formData = new FormData();
+        formData.append('job_description', jd);
+        Array.from(files).forEach(f => formData.append('resumes', f));
+
+        document.getElementById('loadingOverlay').classList.remove('d-none');
+        document.getElementById('analyzeBtn').disabled = true;
+
+        try {
+            const res = await fetch('/analyze', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (data.error) { alert(data.error); return; }
+            displayResults(data);
+        } catch (err) {
+            alert('Something went wrong. Please try again.');
+        } finally {
+            document.getElementById('loadingOverlay').classList.add('d-none');
+            document.getElementById('analyzeBtn').disabled = false;
+        }
+    }
+
+    function displayResults(data) {
+        const panel = document.getElementById('resultsPanel');
+        const countBadge = document.getElementById('resultCount');
+        const results = data.results;
+
+        countBadge.textContent = `${results.length} candidate${results.length > 1 ? 's' : ''}`;
+        countBadge.classList.remove('d-none');
+
+        if (!results.length) {
+            panel.innerHTML = '<p class="text-muted text-center py-4">No valid resumes found.</p>';
+            return;
+        }
+
+        let html = `<p class="text-muted small mb-3"><i class="fas fa-info-circle me-1"></i>
+            Ranked by match score (highest first)</p>`;
+
+        results.forEach((r, i) => {
+            const colorMap = { success: '#198754', warning: '#ffc107', danger: '#dc3545' };
+            const color = colorMap[r.rank_color];
+            const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`;
+
+            html += `
+            <div class="result-card mb-3 p-3 rounded border">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <span class="me-2 fs-5">${medal}</span>
+                        <strong>${r.filename}</strong>
+                    </div>
+                    <span class="badge rounded-pill" style="background:${color}; font-size:0.85rem;">
+                        ${r.rank_label}
+                    </span>
+                </div>
+
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between small text-muted mb-1">
+                        <span>Match Score</span>
+                        <strong style="color:${color}">${r.score}%</strong>
+                    </div>
+                    <div class="progress" style="height:10px;">
+                        <div class="progress-bar" role="progressbar"
+                            style="width:${r.score}%; background:${color};" 
+                            aria-valuenow="${r.score}" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                </div>
+
+                ${r.matching_skills.length ? `
+                <div class="mb-2">
+                    <p class="small fw-semibold text-success mb-1"><i class="fas fa-check-circle me-1"></i>Matching Skills</p>
+                    <div>${r.matching_skills.map(s => `<span class="badge bg-success bg-opacity-10 text-success border border-success me-1 mb-1">${s}</span>`).join('')}</div>
+                </div>` : ''}
+
+                ${r.missing_skills.length ? `
+                <div>
+                    <p class="small fw-semibold text-danger mb-1"><i class="fas fa-times-circle me-1"></i>Missing Skills</p>
+                    <div>${r.missing_skills.map(s => `<span class="badge bg-danger bg-opacity-10 text-danger border border-danger me-1 mb-1">${s}</span>`).join('')}</div>
+                </div>` : ''}
+            </div>`;
+        });
+
+        panel.innerHTML = html;
+    }
+</script>
+</body>
+</html>
