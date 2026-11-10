@@ -3,7 +3,6 @@ import re
 import logging
 from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
-import spacy
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import PyPDF2
@@ -24,24 +23,6 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
 ALLOWED_EXTENSIONS = {"pdf", "docx", "txt"}
-
-# ---------------------------------------------------------------------------
-# spaCy model — lazy-load once
-# ---------------------------------------------------------------------------
-
-_nlp = None
-
-def get_nlp():
-    global _nlp
-    if _nlp is None:
-        try:
-            _nlp = spacy.load("en_core_web_sm")
-        except OSError:
-            import subprocess
-            subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"], check=True)
-            _nlp = spacy.load("en_core_web_sm")
-    return _nlp
-
 
 # ---------------------------------------------------------------------------
 # Skill taxonomy — expanded + normalised aliases
@@ -111,6 +92,23 @@ SKILL_ALIASES: dict[str, str] = {
 _SORTED_ALIASES = sorted(SKILL_ALIASES.keys(), key=len, reverse=True)
 
 
+def _compile_alias(surface: str) -> re.Pattern[str]:
+    """
+    Build a pattern that matches one alias as a whole token.
+
+    A plain \\b boundary is wrong for aliases that start or end with a symbol.
+    "c++", "c#" and ".net" contain no word character at one edge, so \\b can
+    never match there and those skills were silently undetectable. Guard only
+    the edges that actually are alphanumeric.
+    """
+    prefix = r"(?<![A-Za-z0-9])" if surface[0].isalnum() else ""
+    suffix = r"(?![A-Za-z0-9])" if surface[-1].isalnum() else ""
+    return re.compile(prefix + re.escape(surface) + suffix)
+
+
+_ALIAS_PATTERNS = {surface: _compile_alias(surface) for surface in _SORTED_ALIASES}
+
+
 def extract_skills(text: str) -> list[str]:
     """
     Extract canonical skills from text.
@@ -122,11 +120,9 @@ def extract_skills(text: str) -> list[str]:
     text_lower = text.lower()
     found: set[str] = set()
 
-    for surface in _SORTED_ALIASES:
-        # Use word-boundary regex to avoid partial matches
-        if re.search(r"\b" + re.escape(surface) + r"\b", text_lower):
-            canonical = SKILL_ALIASES[surface]
-            found.add(canonical)
+    for surface, pattern in _ALIAS_PATTERNS.items():
+        if pattern.search(text_lower):
+            found.add(SKILL_ALIASES[surface])
 
     return sorted(found)
 
@@ -339,11 +335,13 @@ def analyze():
 @app.route("/ai-tips", methods=["POST"])
 def ai_tips():
     """
-    Returns GPT-generated improvement tips for a resume.
+    Return Claude-generated improvement tips for one resume.
+
     Expects JSON: { filename, score, matching_skills, missing_skills }
-    The frontend already has the Anthropic API call baked in (see index.html),
-    but this endpoint can proxy it server-side if you prefer to keep the key
-    out of the browser.
+
+    Optional endpoint. The page does not call it; it exists as a server-side
+    proxy so an API key never has to live in the browser. Requires
+    `pip install anthropic` and ANTHROPIC_API_KEY in the environment.
     """
     data = request.get_json(silent=True) or {}
     # Validate minimally
