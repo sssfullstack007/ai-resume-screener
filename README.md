@@ -73,7 +73,8 @@ ai-resume-screener/
 │   └── css/
 │       └── style.css
 ├── tests/
-│   └── test_scoring.py     # 18 tests over the scoring logic
+│   ├── test_scoring.py     # 18 tests over the scoring logic
+│   └── test_routes.py      # 5 tests over the HTTP routes
 ├── uploads/                # temp storage, created at import, git-ignored
 ├── LICENSE
 └── README.md
@@ -110,11 +111,16 @@ endpoint, and no key is stored in this repository.
 py -m unittest discover -s tests -v
 ```
 
-18 tests, no extra dependency. They cover the alias matcher, the 0–100 bounds,
-the 60/40 weighting, the rank thresholds, the skill diff, and the experience
-heuristic. One of them is a regression test: `c++`, `c#` and `.net` used to be
-in the alias map but could never match, because `\b` requires a word character
-at both edges and those aliases do not have one.
+23 tests, no extra dependency. `test_scoring.py` covers the alias matcher, the
+0–100 bounds, the 60/40 weighting, the rank thresholds, the skill diff and the
+experience heuristic. `test_routes.py` drives the real Flask app through its
+test client: the page loads, a missing job description is rejected with 400,
+results come back sorted, one unsupported file does not lose the rest of the
+batch, and uploads are cleaned up.
+
+One scoring test is a regression test: `c++`, `c#` and `.net` used to be in the
+alias map but could never match, because `\b` requires a word character at both
+edges and those aliases do not have one.
 
 ## How it works
 
