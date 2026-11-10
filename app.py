@@ -376,4 +376,6 @@ def ai_tips():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Never enable debug on a public host: the Werkzeug debugger allows
+    # arbitrary code execution from the browser. Hosts inject PORT.
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
