@@ -128,20 +128,40 @@ This is a Flask app, so it needs a Python host. **GitHub Pages cannot serve it**
 Pages only serves static files, which is why the portfolio works there and this
 does not.
 
-The repository is ready for the free tier of [Render](https://render.com):
+### Option A — Hugging Face Spaces
+
+The Space files live in `deploy/huggingface/`:
+
+| File | Why it exists |
+|---|---|
+| `Dockerfile` | Spaces builds a container; runs gunicorn on port 7860 as non-root uid 1000 |
+| `README.md` | Spaces reads the YAML front matter for title, SDK and `app_port` |
+| `.dockerignore` | Keeps tests, caches and the deploy folder out of the image |
+| `publish.ps1` | Copies the app into a Space checkout, and pushes with `-Push` |
+
+```bash
+git clone https://huggingface.co/spaces/<user>/ai-resume-screener hf-space
+powershell -File deploy\huggingface\publish.ps1 -Target ..\hf-space -Push
+```
+
+The Space rebuilds on every push. Re-run the same command after changing `app.py`.
+
+### Option B — Render
 
 1. On Render: **New → Blueprint**, select this repository.
 2. Render reads `render.yaml` and builds it.
 3. You get a URL like `https://ai-resume-screener-xxxx.onrender.com`.
 
-What the deployment files do, and why:
+The `Procfile` and `render.yaml` carry the same start command as the Dockerfile.
 
-| File / setting | Purpose |
+### What has to be true on any host
+
+| Setting | Purpose |
 |---|---|
-| `Procfile` and `startCommand` | Runs gunicorn instead of `flask run`; the dev server is single-threaded and not for public traffic |
-| `--bind 0.0.0.0:$PORT` | Hosts assign a port at runtime; hardcoding 5000 fails on deploy |
+| gunicorn, not `flask run` | The dev server is single-threaded and not for public traffic |
+| Bind `0.0.0.0` on the injected port | Hosts assign the port at runtime; hardcoding 5000 fails |
 | `debug=False` | The Werkzeug debugger allows remote code execution — never public |
-| `PYTHON_VERSION=3.11.9` | Pins the interpreter so builds are reproducible |
+| Pinned interpreter | `PYTHON_VERSION=3.11.9`, so builds are reproducible |
 
 **Free-tier reality, stated honestly:** the service sleeps after about 15 minutes
 of inactivity, so the first visit afterwards takes 30–60 seconds to wake. It has

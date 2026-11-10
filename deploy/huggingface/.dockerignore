@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.git/
+.gitignore
+tests/
+deploy/
+uploads/
+.env
+.venv/
+venv/
+*.md
+!README.md
