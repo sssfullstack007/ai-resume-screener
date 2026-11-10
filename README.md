@@ -1,139 +1,171 @@
-# 🤖 AI Resume Screening System
+# AI Resume Screener
 
-An NLP-powered web application that evaluates resumes against a job description, ranks candidates by match score, and surfaces skill gaps — helping recruiters shortlist faster.
+A Flask app that scores uploaded resumes against a job description. It combines
+TF-IDF cosine similarity with skill-overlap matching, then reports a match score,
+the skills that matched, and the specific skills missing from each resume.
 
----
+## Example output
 
-## 🚀 Features
+Three sample resumes scored against one job description, using the same
+functions the `/analyze` route calls:
+
+```
+job skills: ['communication', 'flask', 'git', 'pandas', 'python', 'sql']
+
+candidate_a_python_focus.txt
+  composite 59.4%  (Moderate Match)
+  breakdown: tfidf 32.3% x 0.6  +  skills 100.0% x 0.4
+  experience detected: 2 year(s)
+  matching : ['communication', 'flask', 'git', 'pandas', 'python', 'sql']
+  missing  : []
+
+candidate_b_frontend.txt
+  composite 10.0%  (Weak Match)
+  breakdown: tfidf 5.6% x 0.6  +  skills 16.7% x 0.4
+  experience detected: 4 year(s)
+  matching : ['git']
+  missing  : ['communication', 'flask', 'pandas', 'python', 'sql']
+
+candidate_c_beginner.txt
+  composite 19.1%  (Weak Match)
+  breakdown: tfidf 9.7% x 0.6  +  skills 33.3% x 0.4
+  experience detected: 0 year(s)
+  matching : ['flask', 'python']
+  missing  : ['communication', 'git', 'pandas', 'sql']
+```
+
+Candidate A has every required skill and still scores 59.4%, because TF-IDF
+rewards longer, more similar text. That limitation is documented below rather
+than hidden behind the threshold.
+
+## Features
 
 | Feature | Detail |
 |---|---|
-| 📄 Multi-resume upload | PDF, DOCX, TXT supported |
-| 🧠 Skill extraction | 300+ canonical skills with alias normalisation (`"ml"` = `"machine learning"`) |
-| 📊 Composite match score | 60% TF-IDF similarity + 40% skill overlap, rescaled for realistic output |
-| 🏆 Candidate ranking | Sorted by score: Strong / Moderate / Weak match |
-| ❌ Skill gap analysis | Exact list of job-required skills missing from each resume |
-| 📅 Experience detection | Extracts years of experience from resume text |
-| 🛡️ Fault-tolerant | Per-file error isolation — one bad upload doesn't lose all results |
-| 💡 AI improvement tips | Optional `/ai-tips` endpoint powered by Claude for per-candidate feedback |
+| Multi-resume upload | PDF, DOCX and TXT |
+| Skill extraction | 110 aliases resolving to 82 canonical skills (`"ml"` = `"machine learning"`) |
+| Composite score | 60% TF-IDF similarity + 40% skill overlap, rescaled to 0–100 |
+| Candidate ranking | Sorted by score: Strong / Moderate / Weak, with thresholds at 65 and 40 |
+| Skill gap analysis | The job-required skills missing from each resume |
+| Experience detection | Highest `"N years of experience"` match in the text |
+| Fault tolerance | Each upload is parsed in isolation, so one bad file does not lose the batch |
 
----
-
-## 🛠️ Tech Stack
+## Tech stack
 
 | Layer | Technology |
 |---|---|
 | Backend | Python 3.11+, Flask |
-| NLP | spaCy `en_core_web_sm` |
-| ML | scikit-learn (TF-IDF, cosine similarity) |
-| File parsing | PyPDF2, python-docx |
-| AI tips (optional) | Anthropic Python SDK |
-| Frontend | HTML, CSS, Bootstrap 5 |
+| Matching | scikit-learn TF-IDF vectoriser, cosine similarity |
+| File parsing | PyPDF2 (PDF), python-docx (DOCX) |
+| Tests | `unittest` from the standard library |
+| Frontend | HTML, CSS, Bootstrap 5 via CDN |
+| Optional | Anthropic SDK, only for the `/ai-tips` endpoint |
 
----
-
-## 📁 Project Structure
+## Project structure
 
 ```
 ai-resume-screener/
-│
-├── app.py                  # Flask app — routes, scoring, skill extraction
-├── requirements.txt        # Python dependencies
-│
+├── app.py                  # routes, scoring, skill extraction
+├── requirements.txt
 ├── templates/
-│   └── index.html          # Frontend UI
-│
+│   └── index.html          # single-page UI
 ├── static/
 │   └── css/
-│       └── style.css       # Custom styles
-│
-└── uploads/                # Temp file storage (auto-created on startup)
+│       └── style.css
+├── tests/
+│   └── test_scoring.py     # 18 tests over the scoring logic
+├── uploads/                # temp storage, created at import, git-ignored
+├── LICENSE
+└── README.md
 ```
 
----
+## Setup and run
 
-## ⚙️ Setup & Run
-
-### 1. Clone the repository
 ```bash
-git clone https://github.com/ssfullstack007/ai-resume-screener.git
+git clone https://github.com/sssfullstack007/ai-resume-screener.git
 cd ai-resume-screener
+py -m pip install -r requirements.txt
+py app.py
 ```
 
-### 2. Install dependencies
+Then open <http://127.0.0.1:5000>, paste a job description, and upload one or
+more resumes.
+
+### Optional: AI tips endpoint
+
+`/ai-tips` proxies to Claude so the API key stays server-side. It needs one
+extra package and an environment variable:
+
 ```bash
-pip install -r requirements.txt
-python -m spacy download en_core_web_sm
+py -m pip install anthropic
+export ANTHROPIC_API_KEY=your_key_here     # Windows: set ANTHROPIC_API_KEY=...
 ```
 
-### 3. (Optional) Enable AI tips
+The rest of the app works without either. The page itself never calls this
+endpoint, and no key is stored in this repository.
+
+## Tests
+
 ```bash
-export ANTHROPIC_API_KEY=your_key_here
-```
-Without this, the rest of the app works fine — only the `/ai-tips` endpoint requires it.
-
-### 4. Run the app
-```bash
-python app.py
+py -m unittest discover -s tests -v
 ```
 
-### 5. Open in browser
-```
-http://127.0.0.1:5000
-```
+18 tests, no extra dependency. They cover the alias matcher, the 0–100 bounds,
+the 60/40 weighting, the rank thresholds, the skill diff, and the experience
+heuristic. One of them is a regression test: `c++`, `c#` and `.net` used to be
+in the alias map but could never match, because `\b` requires a word character
+at both edges and those aliases do not have one.
 
----
+## How it works
 
-## 📸 How It Works
+1. Paste a job description.
+2. Upload one or more resumes.
+3. The server extracts text, extracts canonical skills from both sides, and
+   computes the composite score.
+4. Results are ranked: composite score, score breakdown, matching skills,
+   missing skills, and years of experience detected.
 
-1. Paste a **job description** into the text area
-2. Upload one or more resumes (PDF / DOCX / TXT)
-3. Click **Analyze Resumes**
-4. View ranked candidates with:
-   - Composite match score (%)
-   - Score breakdown (TF-IDF vs skill overlap)
-   - Matching skills ✅
-   - Missing skills ❌
-   - Years of experience detected
-
----
-
-## 🧠 Scoring Algorithm
+## Scoring
 
 ```
 Resume text    ──┐
-                 ├──► TF-IDF vectorizer ──► cosine similarity ──► rescaled (÷0.45) ──┐
-Job description ─┘                                                                     │
-                                                                                       ├──► composite score (0–100)
-Skill alias map ──► canonical skill sets ──► overlap % ────────────────────────────────┘
-                                                60% weight                40% weight
+                 ├──► TF-IDF (1-2 grams) ──► cosine similarity ──► ÷0.45 ──┐
+Job description ─┘                                                          │
+                                                                            ├──► composite (0-100)
+Skill aliases ──► canonical skills ──► overlap % ────────────────────────────┘
+                                        60% weight     40% weight
 
-Thresholds:  ≥ 65 → Strong Match   40–64 → Moderate Match   < 40 → Weak Match
+Thresholds: ≥ 65 Strong Match, 40–64 Moderate Match, < 40 Weak Match
 ```
 
-**Why rescale TF-IDF?**  
-Raw cosine similarity between two short documents rarely exceeds 0.45, even for near-perfect matches. Dividing by 0.45 before converting to a percentage makes the score use the full 0–100 range meaningfully.
+**Why rescale TF-IDF?** Raw cosine similarity between two short documents rarely
+exceeds about 0.45, even for near-perfect matches. Dividing by 0.45 before
+converting to a percentage uses the whole 0–100 range.
 
-**Why alias normalisation?**  
-Without it, `"ml"` and `"machine learning"` count as different skills. The alias map resolves 300+ surface forms to canonical names before any comparison is made.
+**Why alias normalisation?** Without it, `"ml"` and `"machine learning"` count as
+different skills. The alias map resolves 110 surface forms to 82 canonical names
+before any comparison happens.
 
----
+## Known limitations
 
-## ⚠️ Known Limitations
+- Skill extraction is keyword-based and context-free: `"no experience in Python"`
+  still counts as Python.
+- TF-IDF is length-sensitive. A short resume with 100% skill overlap scores lower
+  than a long, keyword-dense one. The thresholds do not correct for this.
+- PDF extraction depends on how the PDF was produced; scanned images are not
+  supported because there is no OCR.
+- Experience detection is a regex heuristic: it takes the highest number matching
+  `"N years of experience"`, so it can be fooled by phrasing.
+- All scoring logic currently lives in one `app.py`. It should be split into
+  modules before it grows further.
+- `/ai-tips` has not been exercised against a live API call, because no key is
+  stored in this repository.
 
-- Skill extraction is keyword-based — context-free (e.g. "no experience in Python" still matches Python)
-- PDF text extraction quality depends on how the PDF was generated; scanned PDFs are not supported
-- Experience detection is heuristic — it finds the highest number matching `"N years of experience"` patterns
+## License
 
----
+MIT — see [LICENSE](LICENSE).
 
-## 👨‍💻 Author
+## Author
 
-**Shella Sai Srinivas** — B.Tech, Electronics and Communication Engineering  
-[LinkedIn](#) · [GitHub](https://github.com/ssfullstack007)
-
----
-
-## 📜 License
-
-MIT — open source, free to use and modify.
+**Sai Srinivas Shella** — B.Tech, Electronics and Communication Engineering
+[GitHub](https://github.com/sssfullstack007)
