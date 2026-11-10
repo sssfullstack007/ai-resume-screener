@@ -122,6 +122,38 @@ One scoring test is a regression test: `c++`, `c#` and `.net` used to be in the
 alias map but could never match, because `\b` requires a word character at both
 edges and those aliases do not have one.
 
+## Deploying it
+
+This is a Flask app, so it needs a Python host. **GitHub Pages cannot serve it** —
+Pages only serves static files, which is why the portfolio works there and this
+does not.
+
+The repository is ready for the free tier of [Render](https://render.com):
+
+1. On Render: **New → Blueprint**, select this repository.
+2. Render reads `render.yaml` and builds it.
+3. You get a URL like `https://ai-resume-screener-xxxx.onrender.com`.
+
+What the deployment files do, and why:
+
+| File / setting | Purpose |
+|---|---|
+| `Procfile` and `startCommand` | Runs gunicorn instead of `flask run`; the dev server is single-threaded and not for public traffic |
+| `--bind 0.0.0.0:$PORT` | Hosts assign a port at runtime; hardcoding 5000 fails on deploy |
+| `debug=False` | The Werkzeug debugger allows remote code execution — never public |
+| `PYTHON_VERSION=3.11.9` | Pins the interpreter so builds are reproducible |
+
+**Free-tier reality, stated honestly:** the service sleeps after about 15 minutes
+of inactivity, so the first visit afterwards takes 30–60 seconds to wake. It has
+512 MB RAM, which is enough for scikit-learn here. Disk is ephemeral.
+
+**Privacy:** uploads are written to `uploads/` and deleted in a `finally` block
+after each request. Nothing is persisted, there is no database, and resume
+contents are not logged.
+
+Other hosts that work: Hugging Face Spaces (Docker SDK) and PythonAnywhere.
+Fly.io no longer has a free tier.
+
 ## How it works
 
 1. Paste a job description.
